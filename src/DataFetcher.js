@@ -149,7 +149,7 @@ export default class DataFetcher
 			try {
 				response = await this.fetchRemoteRecord(seedData[currentLine]);
 			} catch(ex) {
-				console.debug(nowStr, "Exception getting address; will retry in a bit...");
+				console.debug(nowStr, "Exception fetching record; will retry in a bit...");
 	
 				// Sleep a little while in case there is an outage somewhere.
 				sleepUntil = Date.now() + this.config.taskInterval*3;
