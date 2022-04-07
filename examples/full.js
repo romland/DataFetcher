@@ -1,4 +1,4 @@
-import DataFetcher from "../src/DataFetcher.js";
+import DataFetcher from "../index.js";
 
 const DRY_RUN = true;
 
