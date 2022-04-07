@@ -50,7 +50,7 @@ export default class DataFetcher
 			},
 
 			mutateImportedSeedRow : (seedRow) => {
-				// Mutate a jsut imported seedRow in place. By default do nothing.
+				// Mutate a just imported seedRow in place. By default do nothing.
 			},
 		};
 	}
