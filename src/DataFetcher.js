@@ -45,12 +45,12 @@ export default class DataFetcher
 			},
 
 			queryRateLimit : (response, seedRow) => {
-				// Default: no rate-limiting.
+				// Default: no rate limiting.
 				return false;
 			},
 
 			mutateImportedSeedRow : (seedRow) => {
-				// Mutate seedRow in place. By default do nothing.
+				// Mutate a jsut imported seedRow in place. By default do nothing.
 			},
 		};
 	}
@@ -75,7 +75,7 @@ export default class DataFetcher
 	{
 		const mandatoryFields = [ 
 			'taskInterval', 'taskBackOffMinutes', 'randomizeSeedOrder', 'randomizeUserAgent', 'runType', 'seedFilename', 
-			'destFilename', 'remoteServiceUrl', 'fetchEnabled', 'relevantSeedDataColumns',
+			'destFilename', 'remoteServiceUrl', 'fetchEnabled', 'relevantSeedDataColumns', "seedDataFormat",
 			// Methods
 			'getBodyToPassToRemoteServer', 'queryRateLimit', 'mutateImportedSeedRow'
 		];
@@ -92,26 +92,26 @@ export default class DataFetcher
 	{
 		console.log(`Starting ${this.config.runType} run...`);
 	
-		const seedData = this.getSeedDataCSV(this.config.seedFilename, this.config.seedDataFormat.lineTerminator, this.config.seedDataFormat.separator);
-	
 		const doneRecords = this.getDoneRecords(this.config.destFilename);
+		const seedData = this.getSeedDataCSV(this.config.seedFilename, this.config.seedDataFormat.lineTerminator, this.config.seedDataFormat.separator);
 	
 		if(this.config.randomizeSeedOrder) {
 			// Shuffle the order of the records in the seed-data
 			this.shuffle(seedData);
 		}
-	
-		let currentLine = 0;			// Start line
-		let endLine = seedData.length;	// Change to just do a test of a smaller number of lines. TODO: Make this configurable.
-	
-		console.debug("Running from line ", currentLine, " to ", endLine, "in seeddata");
-	
+
 		let sleepUntil = 0;
 		let scrapeInterval = null;
 		let taskRunning = false;
 		let response, nowStr;
 
+		let currentLine = 0;			// Start line
+		let endLine = seedData.length;	// Change to just do a test of a smaller number of lines. TODO: Make this configurable.
+	
+		console.debug("Running from line ", currentLine, " to ", endLine, "in seeddata");
+
 		const Task = async () => {
+			// Did we somehow start a task while one was running?
 			if(taskRunning) {
 				console.debug("Already running a task, skipping...");
 				sleepUntil = Date.now() + 200;
@@ -121,7 +121,8 @@ export default class DataFetcher
 			taskRunning = true;
 	
 			nowStr = new Date().toLocaleTimeString();;
-	
+
+			// Are we at the end?
 			if(currentLine >= endLine) {
 				clearInterval(scrapeInterval);
 				console.log(nowStr, "All records done. Last line was", currentLine);
@@ -129,7 +130,8 @@ export default class DataFetcher
 				taskRunning = false;
 				return;
 			}
-	
+
+			// Are we currently expected to sleep? (e.g. rate-limited)
 			if(Date.now() < sleepUntil) {
 				console.debug(nowStr, "Sleeping another", Math.round((sleepUntil - Date.now()) / 1000 / 60), "minutes" );
 	
@@ -137,6 +139,7 @@ export default class DataFetcher
 				return;
 			}
 	
+			// Have we fetched this before?
 			if(this.isFetched(doneRecords, seedData[currentLine])) {
 				console.debug(nowStr, "Skip line", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
 	
@@ -145,14 +148,15 @@ export default class DataFetcher
 				Continue();
 				return;
 			}
-	
+
+			// Fetch the data from the remote service.
 			try {
 				response = await this.fetchRemoteRecord(seedData[currentLine]);
 			} catch(ex) {
 				console.debug(nowStr, "Exception fetching record; will retry in a bit...");
 	
-				// Sleep a little while in case there is an outage somewhere.
-				sleepUntil = Date.now() + this.config.taskInterval*3;
+				// Some error. Sleep 3 intervals in case there is an outage somewhere.
+				sleepUntil = Date.now() + this.config.taskInterval * 3;
 				taskRunning = false;
 				Continue();
 				return;
@@ -169,17 +173,19 @@ export default class DataFetcher
 	
 			// Add the seed data to persisted record for easier refinement.
 			response._seedrow = seedData[currentLine];
-	
+
+			// Save the record to disk.
 			console.debug(nowStr, "Line", currentLine, "Saving", seedData[currentLine].id, response);
 			fs.appendFileSync(this.config.destFilename, JSON.stringify(response) + "\n");
 			doneRecords.push({...this.getRelevantFields(seedData[currentLine])});
 	
-			// Don't sleep.
+			// Don't add any extra sleep before running next task. Standard interval is the decider.
 			sleepUntil = Date.now();
 			currentLine++;
 			taskRunning = false;
 		};
 
+		// To easily kill current interval and restart it (for an immediate continue)
 		const Continue = () => {
 			if(scrapeInterval !== null) {
 				clearInterval(scrapeInterval);
@@ -190,13 +196,20 @@ export default class DataFetcher
 			// Run the first task immediately.
 			Task();
 		};
-		
+
+		// Really just for clarification. Starting and continuing a task is the same.
 		const Start = Continue;
-	
+
+		// Start doing the tasks.
 		Start();
 	}
+
 	
-	
+	/**
+	 * TODO:
+	 * This is a very naive implementation of reading a CSV file.
+	 * It does not handle quoted fields, or escaped separators.
+	 */
 	getSeedDataCSV(fileName, lineTerm = "\r\n", sep = ",")
 	{
 		let ret = [];
