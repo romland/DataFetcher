@@ -1,4 +1,4 @@
-import DataFetcher from "./DataFetcher.js";
+import DataFetcher from "../src/DataFetcher.js";
 
 const DRY_RUN = true;
 
@@ -26,7 +26,7 @@ config.seedDataFormat = {
  */
  config.relevantSeedDataColumns = {
 	zipcode : 0,				// in CSV: zipcode
-	housenumber : 1,			// in CSV: number
+	number : 1,					// in CSV: number
 	housenumberext : 2			// in CSV: addition
 }
 
@@ -61,8 +61,8 @@ config.queryRateLimit = (response, seedRow) => {
 
 if(DRY_RUN) {
 	config.runType = "DRY";
-	config.seedFilename = './data/test.csv';
-	config.destFilename = './dryrun-seed-responses.json';
+	config.seedFilename = './examples/data/test.csv';
+	config.destFilename = './examples/data/output/dryrun-seed-responses.json';
 	config.remoteServiceUrl = 'https://httpbin.org/post';
 	config.fetchEnabled = false;
 } else {
