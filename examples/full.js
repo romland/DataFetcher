@@ -14,15 +14,14 @@ config.seedDataFormat = {
 };
 
 /**
- *	Describe the CSV file (seed data).
+ *	Describe the data in the seed file.
  * 
- *	Define which columns are needed for fetching remote data. These columns must together define a unique key
- *	to be able to determine which records were already fetched (in case you are restarting the task but want
- *	to exclude already fetched data).
+ *	Define which columns are needed for fetching remote data. These columns must together be a unique key
+ *	They are used to verify if a record as already fetched (handy in case you need to restart midway).
  *
- * 	Example:
- *		Column row:	zipcode,number,addition,room,street,city,otherdata,otherdata2,otherdata3,otherdata4
- *		Data row:	1234AB,1,,,TheStreet,TheTown,,,,,#N/A
+ * 	Example of a seed file:
+ *		Column row (line 1):	zipcode,number,addition,room,street,city,otherdata,otherdata2,otherdata3,otherdata4
+ *		Data row (line 2):		1234AB,1,,,TheStreet,TheTown,,,,,#N/A
  */
  config.relevantSeedDataColumns = {
 	zipcode : 0,				// in CSV: zipcode
@@ -39,7 +38,7 @@ config.seedDataFormat = {
  * 
  *	NOTE:
  *	1. The keys are the field names you want to pass to remote service
- *	2. The values must match name of keys in SEEDDATA_COLUMNS
+ *	2. The values must match name of keys in relevantSeedDataColumns
  */
 config.getBodyToPassToRemoteServer = (seedRow) => {
 	return new URLSearchParams(
@@ -53,7 +52,7 @@ config.getBodyToPassToRemoteServer = (seedRow) => {
 
 /**
  * If necessary, describe how to determine whether we need to back off from the 
- * remote service for a N minutes.
+ * remote service for N minutes.
  */
 config.queryRateLimit = (response, seedRow) => {
 	return response["error"] === "Slow down."
