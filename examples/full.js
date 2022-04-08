@@ -1,4 +1,5 @@
 import DataFetcher from "../index.js";
+import fs from 'fs';
 
 const DRY_RUN = true;
 
@@ -58,12 +59,69 @@ config.queryRateLimit = (response, seedRow) => {
 	return response["error"] === "Slow down."
 }
 
+/**
+ *	This is the opportunity to do some post-processing on fetched data,
+ *	e.g. create a new CSV file with added data.
+ *
+ *  NOTE: The flag must be true or responses will not be cached.
+ */
+config.postRunRefineEnabled = true;
+config.postRunRefine = (responses, seedDataColumnNames) => {
+	const refinedFilename = "./examples/data/output/refined.csv";
+
+	console.debug("postRunRefine called with:", responses.length, "records");
+
+	// The refined file is always machine generated so should contain no additional
+	// data. It's safe to delete.
+	if(fs.existsSync(refinedFilename)) {
+		fs.unlinkSync(refinedFilename);
+		console.debug(`Deleted ${refinedFilename}`);
+	}
+
+	// Undo randomized order.
+	responses.sort((a, b) => {
+		return a._seedrow.id - b._seedrow.id;
+	});
+
+	// Add which fields we would like to append to the column names.
+	// Note that these column names should match the data that is appended
+	// on each line in the loop below.
+	seedDataColumnNames += ",seedindex,fetching,fetcheddata,origin";
+	seedDataColumnNames += config.seedDataFormat.lineTerminator;
+
+	// Write the column names to file (always first line in a CSV file).
+	fs.appendFileSync(refinedFilename, seedDataColumnNames);
+
+	// Re-assemble the seed CSV file with fetched data appended to each record.
+	let csvLine;
+	for(let i = 0; i < responses.length; i++) {
+		// Start with the original CSV row.
+		csvLine = responses[i]._seedrow.org;
+
+		// Add our fetched fields.
+		if(responses[i]._fetchEnabled === false) {
+			// This is in case we are running dry mode and not actually fetching any data.
+			// You do not have to care about this case in the real world.
+			csvLine += "," + responses[i]._seedrow.id + ",false,n/a";
+		} else {
+			// The 'origin' field here comes from 'httpbin.org' (the default remote service).
+			csvLine += "," + responses[i]._seedrow.id + ",true," + responses[i].origin;
+		}
+		
+		csvLine += config.seedDataFormat.lineTerminator;
+		fs.appendFileSync(refinedFilename, csvLine);
+	}
+
+	console.log("Created", refinedFilename);
+};
+
+
 if(DRY_RUN) {
 	config.runType = "DRY";
 	config.seedFilename = './examples/data/test.csv';
 	config.destFilename = './examples/data/output/dryrun-seed-responses.json';
 	config.remoteServiceUrl = 'https://httpbin.org/post';
-	config.fetchEnabled = false;
+	config.fetchEnabled = true;
 } else {
 	config.runType = "REAL";
 	config.seedFilename = './realseeddata.csv';

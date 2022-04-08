@@ -7,6 +7,8 @@ export default class DataFetcher
 	config;
 	seedDataColumnIndices;
 	seedDataColumnNames;
+	cachedResponses;			// Used by post-refinement.
+	cachedSeedDataColumnNames;	// Used by post-refinement.
 
 	static getDefaultConfiguration()
 	{
@@ -55,6 +57,22 @@ export default class DataFetcher
 			mutateImportedSeedRow : (seedRow) => {
 				// Mutate a just imported seedRow in place. By default do nothing.
 			},
+
+			/**
+			 * This will consume a bit more memory as all responses are cached
+			 * to be passed to this function when the run is finished or aborted.
+			 * 
+			 * It is handy for the case where you want to immediately create a 
+			 * new CSV file including the fetched data.
+			 * 
+			 * Old responses from a possible previous run are also included in the 
+			 * array passed to postRunRefine().
+			 */
+			postRunRefineEnabled : false,
+			postRunRefine : (responses, seedDataColumnNames) => {
+				// Does nothing by default.
+				// Note that it is also DISABLED by default (set postRunRefinementEnabled to true).
+			},
 		};
 	}
 
@@ -94,6 +112,8 @@ export default class DataFetcher
 	run()
 	{
 		console.log(`Starting ${this.config.runType} run...`);
+
+		this.cachedResponses = [];
 	
 		const doneRecords = this.getDoneRecords(this.config.destFilename);
 		const seedData = this.getSeedDataCSV(this.config.seedFilename, this.config.seedDataFormat.lineTerminator, this.config.seedDataFormat.separator);
@@ -153,8 +173,8 @@ export default class DataFetcher
 	
 			// Have we fetched this before?
 			if(this.isFetched(doneRecords, seedData[currentLine])) {
-				console.debug(nowStr, "Skip line", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
-	
+				console.debug(nowStr, "Already fetched. Skipping", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
+
 				currentLine++;
 				taskRunning = false;
 				Continue();
@@ -167,6 +187,7 @@ export default class DataFetcher
 				currentFailCount = 0;
 				currentRecordFailCount = 0;
 			} catch(ex) {
+				// Some error while fetching.
 				console.log(ex, ex.message);
 				console.debug(nowStr, `Exception (${currentRecordFailCount}) fetching record; will retry in a bit...`);
 
@@ -178,13 +199,14 @@ export default class DataFetcher
 					currentLine++;
 					currentRecordFailCount = 0;
 				} else {
+					// Retry record, increase fail count.
 					currentRecordFailCount++;
 				}
 
 				// Increase global fail count.				
 				currentFailCount++;
 				
-				// Some error. Sleep a couple of intervals in case there is an outage somewhere.
+				// Sleep a couple of intervals in case there is an outage somewhere.
 				sleepUntil = Date.now() + this.config.taskInterval * this.config.sleepIntervalsAfterFail;
 				taskRunning = false;
 
@@ -193,7 +215,7 @@ export default class DataFetcher
 				return;
 			}
 	
-			// Check for rate-limiting.
+			// Check for rate-limiting (we will discard this response).
 			if(this.config.queryRateLimit(response, seedData[currentLine])) {
 				console.log(nowStr, "Rate limited. Backing off for ", this.config.taskBackOffMinutes, "minutes");
 	
@@ -207,8 +229,15 @@ export default class DataFetcher
 
 			// Save the record to disk.
 			console.debug(nowStr, "Line", currentLine, "Saving", seedData[currentLine].id, response);
+
+			// If this fails, let it crash.
 			fs.appendFileSync(this.config.destFilename, JSON.stringify(response) + "\n");
+
 			doneRecords.push({...this.getRelevantFields(seedData[currentLine])});
+
+			if(this.config.postRunRefineEnabled === true) {
+				this.cachedResponses.push(response);
+			}
 
 			// Don't add any extra sleep before running next task. Standard interval is the decider.
 			sleepUntil = Date.now();
@@ -216,10 +245,14 @@ export default class DataFetcher
 			taskRunning = false;
 		};
 
-		// Cancel current task-runner.
+		// Cancel current task-runner and do NOT restart.
 		const Stop = () => {
 			if(scrapeInterval !== null) {
 				clearInterval(scrapeInterval);
+			}
+
+			if(this.config.postRunRefineEnabled === true) {
+				this.config.postRunRefine(this.cachedResponses, this.cachedSeedDataColumnNames);
 			}
 		};
 
@@ -255,8 +288,16 @@ export default class DataFetcher
 		const csv = fs.readFileSync(fileName, 'utf8');
 		const lines = csv.split(lineTerm);
 	
-		// skip first line (column names)
-		for(let i = 1; i < lines.length; i++) {
+		for(let i = 0; i < lines.length; i++) {
+			if(i === 0) {
+				if(this.config.postRunRefineEnabled === true) {
+					this.cachedSeedDataColumnNames = lines[i];
+				}
+
+				// skip first line (column names) TODO: Make configurable
+				continue;
+			}
+
 			let line = lines[i].split(sep);
 	
 			let newRec = {};
@@ -277,8 +318,8 @@ export default class DataFetcher
 	
 		return ret;
 	}
-	
-	
+
+
 	getDoneRecords(fileName)
 	{
 		if(!fs.existsSync(fileName)) {
@@ -289,6 +330,7 @@ export default class DataFetcher
 		let doneArr = doneTxt.split("\n");
 		let ret = [];
 		let rec;
+		let newDoneRec;
 	
 		for(let i = 0; i < doneArr.length; i++) {
 			if(!doneArr[i]) {
@@ -296,10 +338,16 @@ export default class DataFetcher
 			}
 			rec = JSON.parse(doneArr[i]);
 	
-			let newDoneRec = {};
+			newDoneRec = {};
 			for(let j = 0; j < this.seedDataColumnIndices.length; j++) {
 				newDoneRec[this.seedDataColumnNames[j]] = rec._seedrow[this.seedDataColumnNames[j]];
 			}
+
+			if(this.config.postRunRefineEnabled === true) {
+				// This is a saved response from a previous run, include it for post-processing if it is enabled.
+				this.cachedResponses.push(rec);
+			}
+
 			ret.push(newDoneRec);
 		}
 	
@@ -341,9 +389,9 @@ export default class DataFetcher
 			console.warn("Fetch disabled. Pretending to get remote data.");
 			response = {
 				data : {
-					fetchEnabled : false,
-					triggerModalUrl : "",
-					body : body.toString()
+					_runType : this.config.runType,
+					_fetchEnabled : false,
+					_body : body.toString()
 				}
 			};
 		}
