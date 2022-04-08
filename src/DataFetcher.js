@@ -2,14 +2,6 @@ import fs from 'fs';
 import axios from 'axios';
 import UserAgent from 'user-agents';
 
-/*
-TODO: implement:
-	Max attempts for a record
-	Max fails in a row
-
-*/
-
-
 export default class DataFetcher
 {
 	config;
