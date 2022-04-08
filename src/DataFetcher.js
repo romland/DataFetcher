@@ -2,6 +2,14 @@ import fs from 'fs';
 import axios from 'axios';
 import UserAgent from 'user-agents';
 
+/*
+TODO: implement:
+	Max attempts for a record
+	Max fails in a row
+
+*/
+
+
 export default class DataFetcher
 {
 	config;
@@ -18,6 +26,9 @@ export default class DataFetcher
 			randomizeSeedOrder : true,						// Randomize the order of the imported data.
 			randomizeUserAgent : true,						// Randomize the user-agent for each request.
 			remoteProxy : undefined,						// Proxy settings if needed (likely). This is passed as-is to axios (see their documentation).
+			maxRecordFailCount : 5,							// How many times to retry fetching a record before giving up.
+			maxFailCount : 25,								// How many consecutive fetch-failures before we abort whole run.
+			sleepIntervalsAfterFail : 3,					// How many intervals to sleep after a fetch-failure (set to 0 for none).
 
 			seedDataFormat : {
 				format : "CSV",								// What format is the seed data in?
@@ -104,6 +115,7 @@ export default class DataFetcher
 		let scrapeInterval = null;
 		let taskRunning = false;
 		let response, nowStr;
+		let currentFailCount = 0, currentRecordFailCount = 0;
 
 		let currentLine = 0;			// Start line
 		let endLine = seedData.length;	// Change to just do a test of a smaller number of lines. TODO: Make this configurable.
@@ -124,9 +136,17 @@ export default class DataFetcher
 
 			// Are we at the end?
 			if(currentLine >= endLine) {
-				clearInterval(scrapeInterval);
 				console.log(nowStr, "All records done. Last line was", currentLine);
-	
+
+				Stop();
+				taskRunning = false;
+				return;
+			}
+
+			if(currentFailCount >= this.config.maxFailCount) {
+				console.log(nowStr, `Too many consecutive failures (${currentFailCount}), aborting.`);
+
+				Stop();
 				taskRunning = false;
 				return;
 			}
@@ -152,12 +172,31 @@ export default class DataFetcher
 			// Fetch the data from the remote service.
 			try {
 				response = await this.fetchRemoteRecord(seedData[currentLine]);
+				currentFailCount = 0;
+				currentRecordFailCount = 0;
 			} catch(ex) {
-				console.debug(nowStr, "Exception fetching record; will retry in a bit...");
-	
-				// Some error. Sleep 3 intervals in case there is an outage somewhere.
-				sleepUntil = Date.now() + this.config.taskInterval * 3;
+				console.log(ex, ex.message);
+				console.debug(nowStr, `Exception (${currentRecordFailCount}) fetching record; will retry in a bit...`);
+
+				if(currentRecordFailCount >= this.config.maxRecordFailCount) {
+					// Too mamany consecutive failures for this recurd, skip it.
+					console.log(nowStr, "Skipping record, too many consecutive failures", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
+
+					// Skip this record.
+					currentLine++;
+					currentRecordFailCount = 0;
+				} else {
+					currentRecordFailCount++;
+				}
+
+				// Increase global fail count.				
+				currentFailCount++;
+				
+				// Some error. Sleep a couple of intervals in case there is an outage somewhere.
+				sleepUntil = Date.now() + this.config.taskInterval * this.config.sleepIntervalsAfterFail;
 				taskRunning = false;
+
+				// Continue immediately (in case sleep-intervals is 0).
 				Continue();
 				return;
 			}
@@ -178,15 +217,23 @@ export default class DataFetcher
 			console.debug(nowStr, "Line", currentLine, "Saving", seedData[currentLine].id, response);
 			fs.appendFileSync(this.config.destFilename, JSON.stringify(response) + "\n");
 			doneRecords.push({...this.getRelevantFields(seedData[currentLine])});
-	
+
 			// Don't add any extra sleep before running next task. Standard interval is the decider.
 			sleepUntil = Date.now();
 			currentLine++;
 			taskRunning = false;
 		};
 
+		// Cancel current task-runner.
+		const Stop = () => {
+			if(scrapeInterval !== null) {
+				clearInterval(scrapeInterval);
+			}
+		};
+
 		// To easily kill current interval and restart it (for an immediate continue)
 		const Continue = () => {
+			// Or just call Stop?
 			if(scrapeInterval !== null) {
 				clearInterval(scrapeInterval);
 			}
@@ -300,7 +347,7 @@ export default class DataFetcher
 			// TODO: Make configurable. Be able to simulate this with a passed in function 
 			// if we're not calling the remote service
 			console.warn("Fetch disabled. Pretending to get remote data.");
-
+throw "Test error";
 			response = {
 				data : {
 					fetchEnabled : false,
