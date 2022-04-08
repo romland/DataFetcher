@@ -248,7 +248,7 @@ export default class DataFetcher
 			response._seedrow = seedData[currentLine];
 
 			// Save the record to disk.
-			console.debug(nowStr, "Line", currentLine, "Saving", seedData[currentLine].id, response);
+			console.warn(nowStr, "Saving record", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
 
 			// If this fails, let it crash.
 			fs.appendFileSync(this.config.responseCacheFilename, JSON.stringify(response) + "\n");

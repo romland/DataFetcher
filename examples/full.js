@@ -57,7 +57,7 @@ config.getBodyToPassToRemoteServer = (seedRow) => {
  */
 config.queryBackOff = (response, seedRow, fetchesSinceLastBackOff) => {
 	// Back off every N remote fetches.
-	if(fetchesSinceLastBackOff >= 2) {
+	if(fetchesSinceLastBackOff >= 25) {
 		return true;
 	}
 
