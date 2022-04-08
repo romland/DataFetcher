@@ -26,7 +26,7 @@ npm install github:romland/DataFetcher
 ```
 
 ## Usage
-```
+```javascript
 import DataFetcher from "DataFetcher";
 
 const config = DataFetcher.getDefaultConfiguration();
@@ -52,3 +52,7 @@ It should be easy to add broader support.
 
 ## Additional notes
 If you are not using a proxy, just do `config.remoteProxy = undefined;`
+
+
+## License
+MIT.
