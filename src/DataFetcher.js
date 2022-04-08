@@ -24,7 +24,7 @@ export default class DataFetcher
 			maxFailCount : 25,								// How many consecutive fetch-failures before we abort whole run.
 			sleepIntervalsAfterFail : 3,					// How many intervals to sleep after a fetch-failure (set to 0 for none).
 			responseCacheFilename : "default-responsecache.json",	// The file to write the fetched data to (for recovery).
-			discardBackOffResponse : true,				// Whether to discard the response that makes us back off.
+			discardBackOffResponse : false,					// Whether to discard the response that makes us back off.
 
 			seedDataFormat : {
 				format : "CSV",								// What format is the seed data in?

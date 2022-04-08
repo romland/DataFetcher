@@ -103,15 +103,21 @@ if(DRY_RUN) {
 config.responseCacheFilename = './examples/data/output/' + config.runType + '-responsecache.json';
 
 /**
+ * This flag is looked at if queryBackOff() returns true.
+ * 
  * Whether we should discard the response we got when we decided to back off.
  * 
  * The method config.queryRateLimit() is where you make the rules for this.
  *
- * Setting below to true is handy if you do not know how many records you can fetch, and
- * the response is telling you that you are now temporarily blocked.
+ * Setting below to true is handy if you do not know how many records you can fetch, but
+ * a response is telling you that you are now temporarily blocked. You do not want that
+ * message to be associated with the record you attempted to fetch (bad data).
  * 
  * Setting below to false is handy if you only want to get, say 20 records, then back
  * off for a while.
+ * 
+ * If you do not want any back-off at all, make queryBackOff() always return false and
+ * this flag does nothing.
  */
 config.discardBackOffResponse = false;
 
