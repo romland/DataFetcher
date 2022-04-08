@@ -27,7 +27,7 @@ config.seedDataFormat = {
  config.relevantSeedDataColumns = {
 	zipcode : 0,				// in CSV: zipcode
 	number : 1,					// in CSV: number
-	housenumberext : 2			// in CSV: addition
+	addition : 2				// in CSV: addition
 }
 
 /**
@@ -46,7 +46,7 @@ config.getBodyToPassToRemoteServer = (seedRow) => {
 		{
 			"zip" : "" + seedRow.zipcode,
 			"num" : "" + seedRow.number,
-			"ext" : "" + seedRow.housenumberext
+			"ext" : "" + seedRow.addition
 		}
 	);
 }
@@ -130,7 +130,7 @@ if(DRY_RUN) {
 	config.seedFilename = './examples/data/test.csv';
 	config.destFilename = './examples/data/output/dryrun-seed-responses.json';
 	config.remoteServiceUrl = 'https://httpbin.org/post';
-	config.fetchEnabled = true;
+	config.fetchEnabled = false;
 } else {
 	config.runType = "REAL";
 	config.seedFilename = './realseeddata.csv';
