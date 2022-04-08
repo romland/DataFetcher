@@ -1,5 +1,4 @@
 import DataFetcher from "../index.js";
-import fs from 'fs';
 
 const DRY_RUN = true;
 
