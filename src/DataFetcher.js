@@ -407,7 +407,7 @@ export default class DataFetcher
 							"Accept-Encoding": "deflate, gzip;q=1.0, *;q=0.5",
 							"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
 						},
-						proxy: this.config.proxy,
+						proxy: this.config.remoteProxy,
 					}
 				);
 			} catch(ex) {
