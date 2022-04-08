@@ -75,21 +75,20 @@ config.postRunRefineRecord = (response) => {
 	};
 };
 
-
-
 if(DRY_RUN) {
 	config.runType = "DRY";
 	config.seedFilename = './examples/data/test.csv';
-	config.destFilename = './examples/data/output/dryrun-seed-responses.json';
 	config.remoteServiceUrl = 'https://httpbin.org/post';
 	config.fetchEnabled = false;
 } else {
 	config.runType = "REAL";
 	config.seedFilename = './realseeddata.csv';
-	config.destFilename = './seed-responses.json';
 	config.remoteServiceUrl = 'https://some.remoteservice.nl/form.php';
 	config.fetchEnabled = true;
 }
+
+// Separate cache from test runs and live runs (in case we need to restart and test midway)
+config.responseCacheFilename = './examples/data/output/' + config.runType + '-responsecache.json';
 
 /**
  * We want to use a proxy server. This is passed as-is to Axios.

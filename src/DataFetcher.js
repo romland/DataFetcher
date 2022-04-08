@@ -24,6 +24,7 @@ export default class DataFetcher
 			maxRecordFailCount : 5,							// How many times to retry fetching a record before giving up.
 			maxFailCount : 25,								// How many consecutive fetch-failures before we abort whole run.
 			sleepIntervalsAfterFail : 3,					// How many intervals to sleep after a fetch-failure (set to 0 for none).
+			responseCacheFilename : "default-responsecache.json",	// The file to write the fetched data to (for recovery).
 
 			seedDataFormat : {
 				format : "CSV",								// What format is the seed data in?
@@ -35,7 +36,6 @@ export default class DataFetcher
 			 * Below are things that you likely want to set yourself.
 			 */
 			seedFilename : "seeds.csv",						// The CSV file containing the seed data.
-			destFilename : "done.txt",						// The file to write the fetched data to.
 			remoteServiceUrl : 'https://httpbin.org/post',	// The URL to POST to.
 			fetchEnabled : false,							// Whether or not to fetch data (can be useful to test read/write data).
 
@@ -65,7 +65,8 @@ export default class DataFetcher
 			 * 
 			 * It is handy for the case where you want to immediately create a 
 			 * new file based on seedfile, including the fetched data. If you choose
-			 * to not use this functionality, you can just parse the output fil yourself.
+			 * to not use this functionality, you can just parse the file defined in
+			 * `responseCacheFilename` yourself.
 			 * 
 			 * If you are enabling this, though:
 			 * 
@@ -81,7 +82,7 @@ export default class DataFetcher
 			postRunRefineEnabled : false,
 			postRunRefineRecord : (response) => {
 				// Does nothing by default.
-				// Note that it is also DISABLED by default (set postRunRefineEnabled to true).
+				// Note that calling this is also DISABLED by default (set postRunRefineEnabled to true).
 			},
 		};
 	}
@@ -106,9 +107,9 @@ export default class DataFetcher
 	{
 		const mandatoryFields = [ 
 			'taskInterval', 'taskBackOffMinutes', 'randomizeSeedOrder', 'randomizeUserAgent', 'runType', 'seedFilename', 
-			'destFilename', 'remoteServiceUrl', 'fetchEnabled', 'relevantSeedDataColumns', "seedDataFormat",
+			'responseCacheFilename', 'remoteServiceUrl', 'fetchEnabled', 'relevantSeedDataColumns', "seedDataFormat",
 			// Methods
-			'getBodyToPassToRemoteServer', 'queryRateLimit', 'mutateImportedSeedRow'
+			'getBodyToPassToRemoteServer', 'queryRateLimit', 'mutateImportedSeedRow', "postRunRefineRecord"
 		];
 	
 		for(let i = 0; i < mandatoryFields.length; i++) {
@@ -125,7 +126,7 @@ export default class DataFetcher
 
 		this.cachedResponses = [];
 	
-		const doneRecords = this.getDoneRecords(this.config.destFilename);
+		const doneRecords = this.getFetchedRecords(this.config.responseCacheFilename);
 		const seedData = this.getSeedDataCSV(this.config.seedFilename, this.config.seedDataFormat.lineTerminator, this.config.seedDataFormat.separator);
 	
 		if(this.config.randomizeSeedOrder) {
@@ -241,7 +242,7 @@ export default class DataFetcher
 			console.debug(nowStr, "Line", currentLine, "Saving", seedData[currentLine].id, response);
 
 			// If this fails, let it crash.
-			fs.appendFileSync(this.config.destFilename, JSON.stringify(response) + "\n");
+			fs.appendFileSync(this.config.responseCacheFilename, JSON.stringify(response) + "\n");
 
 			doneRecords.push({...this.getRelevantFields(seedData[currentLine])});
 
@@ -294,9 +295,11 @@ export default class DataFetcher
 	 */
 	getSeedDataCSV(fileName, lineTerm = "\r\n", sep = ",")
 	{
-		let ret = [];
+		console.log("Reading seed data from", fileName);
+
 		const csv = fs.readFileSync(fileName, 'utf8');
 		const lines = csv.split(lineTerm);
+		let ret = [];
 	
 		for(let i = 0; i < lines.length; i++) {
 			if(i === 0) {
@@ -330,12 +333,14 @@ export default class DataFetcher
 	}
 
 
-	getDoneRecords(fileName)
+	getFetchedRecords(fileName)
 	{
 		if(!fs.existsSync(fileName)) {
 			return [];
 		}
-	
+
+		console.log("Reading cached responses from", fileName, " NOTE: To start over fresh, delete this file.");
+
 		let doneTxt = fs.readFileSync(fileName, 'utf8')
 		let doneArr = doneTxt.split("\n");
 		let ret = [];
