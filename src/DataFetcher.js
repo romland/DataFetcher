@@ -339,7 +339,6 @@ export default class DataFetcher
 			// TODO: Make configurable. Be able to simulate this with a passed in function 
 			// if we're not calling the remote service
 			console.warn("Fetch disabled. Pretending to get remote data.");
-throw "Test error";
 			response = {
 				data : {
 					fetchEnabled : false,
