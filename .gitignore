@@ -131,4 +131,4 @@ dist
 
 package-lock.json
 examples/data/output/*
-examples/data/refined_*
+examples/data/*.refined.*
