@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path  from "path";
 import axios from 'axios';
 import UserAgent from 'user-agents';
 
@@ -126,8 +125,12 @@ export default class DataFetcher
 
 		this.cachedResponses = [];
 	
-		const doneRecords = this.getFetchedRecords(this.config.responseCacheFilename);
-		const seedData = this.getSeedDataCSV(this.config.seedFilename, this.config.seedDataFormat.lineTerminator, this.config.seedDataFormat.separator);
+		const doneRecords = this.loadFetchedRecords(this.config.responseCacheFilename);
+		const seedData = this.loadSeedDataCSV(
+			this.config.seedFilename,
+			this.config.seedDataFormat.lineTerminator,
+			this.config.seedDataFormat.separator
+		);
 	
 		if(this.config.randomizeSeedOrder) {
 			// Shuffle the order of the records in the seed-data
@@ -159,7 +162,7 @@ export default class DataFetcher
 
 			// Are we at the end?
 			if(currentLine >= endLine) {
-				console.log(nowStr, "All records done. Last line was", currentLine);
+				console.debug(nowStr, "All records done. Last line was", currentLine);
 
 				Stop();
 				taskRunning = false;
@@ -167,7 +170,7 @@ export default class DataFetcher
 			}
 
 			if(currentFailCount >= this.config.maxFailCount) {
-				console.log(nowStr, `Too many consecutive failures (${currentFailCount}), aborting.`);
+				console.warn(nowStr, `Too many consecutive failures (${currentFailCount}), aborting.`);
 
 				Stop();
 				taskRunning = false;
@@ -204,7 +207,7 @@ export default class DataFetcher
 
 				if(currentRecordFailCount >= this.config.maxRecordFailCount) {
 					// Too mamany consecutive failures for this recurd, skip it.
-					console.log(nowStr, "Skipping record, too many consecutive failures", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
+					console.warn(nowStr, "Skipping record, too many consecutive failures", currentLine, "id:", seedData[currentLine].id, "data:", this.getRelevantFields(seedData[currentLine]) );
 
 					// Skip this record.
 					currentLine++;
@@ -228,7 +231,7 @@ export default class DataFetcher
 	
 			// Check for rate-limiting (we will discard this response).
 			if(this.config.queryRateLimit(response, seedData[currentLine])) {
-				console.log(nowStr, "Rate limited. Backing off for ", this.config.taskBackOffMinutes, "minutes");
+				console.warn(nowStr, "Rate limited. Backing off for ", this.config.taskBackOffMinutes, "minutes");
 	
 				sleepUntil = Date.now() + (this.config.taskBackOffMinutes * 60 * 1000);
 				taskRunning = false;
@@ -293,7 +296,7 @@ export default class DataFetcher
 	 * This is a very naive implementation of reading a CSV file.
 	 * It does not handle quoted fields, or escaped separators.
 	 */
-	getSeedDataCSV(fileName, lineTerm = "\r\n", sep = ",")
+	loadSeedDataCSV(fileName, lineTerm = "\r\n", sep = ",")
 	{
 		console.log("Reading seed data from", fileName);
 
@@ -333,7 +336,7 @@ export default class DataFetcher
 	}
 
 
-	getFetchedRecords(fileName)
+	loadFetchedRecords(fileName)
 	{
 		if(!fs.existsSync(fileName)) {
 			return [];
@@ -463,12 +466,10 @@ export default class DataFetcher
 	}
 
 	/**
-	 * This does the opposite of getSeedDataCSV().
+	 * This creates a copy of loadSeedDataCSV() with new data appended.
 	 */
 	postRefineCSV(responses, columnNames)
 	{
-		// const tmpfn = path.basename(this.config.seedFilename);
-		// const refinedFilename = this.config.seedFilename.replace(tmpfn, "refined_" + tmpfn);
 		const refinedFilename = this.config.seedFilename + ".refined.csv";
 
 		// The refined file is always machine generated so should contain 
@@ -500,7 +501,7 @@ export default class DataFetcher
 			let newData = this.config.postRunRefineRecord(responses[i]);
 
 			if(i === 0) {
-				// First row means we should write the fieldnames
+				// First row means we should write the column names to destination file.
 				let cols = columnNames
 					+ this.config.seedDataFormat.separator
 					+ Object.keys(newData).join(this.config.seedDataFormat.separator);
@@ -525,7 +526,7 @@ export default class DataFetcher
 				}
 			}
 			
-			// Start the row with the original CSV data.
+			// Start the line with the original data.
 			csvLine = responses[i]._seedrow.org;
 			
 			// Append the new data
@@ -536,7 +537,7 @@ export default class DataFetcher
 			csvLine += this.config.seedDataFormat.lineTerminator;
 
 			fs.appendFileSync(refinedFilename, csvLine);
-		}
+		} // for each response
 	
 		console.log("Created", refinedFilename);
 	}
