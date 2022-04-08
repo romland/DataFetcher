@@ -1,7 +1,7 @@
 # DataFetcher
-Fetch remote data based on seed data. It's thrown together quickly because I needed it. Packaged it up because I might need again.
+A library to fetch remote data based on seed data; thrown together quickly because I needed it. Packaged it up because I might need again.
 
-This is mostly for when you need to be naughty, i.e. they do not want you to get that remote data. 
+This is mostly for when you need to be a bit naughty, i.e. they do not want you to get that remote data. 
 
 It handles the boring stuff:
 - back-off period (in case of rate-limit/block/ban)
