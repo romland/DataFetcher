@@ -3,15 +3,16 @@ A node.js library to fetch remote data based on seed data; thrown together quick
 
 This is mostly for when you need to be a bit naughty, i.e. they do not want you to get that remote data. 
 
-It handles the boring stuff:
-- back-off period (in case of rate-limit/block/ban)
-- delay between tasks
+The library handles the boring stuff:
+- proxying
+- delay tasks
+- retry on fail
 - user-agent randomization
 - randomize order of queries
 - (for now naive) csv import/export
 - re-assembly of CSV files with fetched data
 - error recovery (and caching in case of crash)
-- proxying
+- back-off period (in case of rate-limit/block/ban)
 - ...and more
 
 If you are being naughty, you will want to use one of the many proxy providers to fetch from a "random" IP address.
@@ -35,6 +36,19 @@ const config = DataFetcher.getDefaultConfiguration();
 const df = new DataFetcher(config);
 df.run();
 ```
+
+
+## Current limitations
+The limitations are there only because I have not needed anything else. 
+
+- Very naive CSV handling (no support for quotes nor escaped delimeters)
+- Only support seed files in CSV
+- Can only create CSV files
+- Can only send the following request type(s):
+	- POST form fields with content-type application/x-www-form-urlencoded
+
+It should be easy to add broader support.
+
 
 ## Additional notes
 If you are not using a proxy, just do `config.remoteProxy = undefined;`
