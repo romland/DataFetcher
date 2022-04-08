@@ -86,14 +86,19 @@ config.postRunRefine = (responses, seedDataColumnNames) => {
 	// Add which fields we would like to append to the column names.
 	// Note that these column names should match the data that is appended
 	// on each line in the loop below.
-	seedDataColumnNames += ",seedindex,fetching,fetcheddata,origin";
+	seedDataColumnNames += ",seedindex,fetching,origin";
 	seedDataColumnNames += config.seedDataFormat.lineTerminator;
 
 	// Write the column names to file (always first line in a CSV file).
 	fs.appendFileSync(refinedFilename, seedDataColumnNames);
 
-	// Re-assemble the seed CSV file with fetched data appended to each record.
 	let csvLine;
+
+	const appendField = (val) => {
+		csvLine += config.seedDataFormat.separator + val;
+	};
+	
+	// Re-assemble the seed CSV file with fetched data appended to each record.
 	for(let i = 0; i < responses.length; i++) {
 		// Start with the original CSV row.
 		csvLine = responses[i]._seedrow.org;
@@ -102,10 +107,14 @@ config.postRunRefine = (responses, seedDataColumnNames) => {
 		if(responses[i]._fetchEnabled === false) {
 			// This is in case we are running dry mode and not actually fetching any data.
 			// You do not have to care about this case in the real world.
-			csvLine += "," + responses[i]._seedrow.id + ",false,n/a";
+			appendField(responses[i]._seedrow.id);
+			appendField("false");
+			appendField("n/a");
 		} else {
 			// The 'origin' field here comes from 'httpbin.org' (the default remote service).
-			csvLine += "," + responses[i]._seedrow.id + ",true," + responses[i].origin;
+			appendField(responses[i]._seedrow.id);
+			appendField("true");
+			appendField(responses[i].origin);
 		}
 		
 		csvLine += config.seedDataFormat.lineTerminator;
