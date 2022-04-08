@@ -1,5 +1,5 @@
 # DataFetcher
-A library to fetch remote data based on seed data; thrown together quickly because I needed it. Packaged it up because I might need again.
+A node.js library to fetch remote data based on seed data; thrown together quickly because I needed it. Packaged it up because I might need again.
 
 This is mostly for when you need to be a bit naughty, i.e. they do not want you to get that remote data. 
 
@@ -37,4 +37,4 @@ df.run();
 ```
 
 ## Additional notes
-If you are not using a Proxy, just do `config.remoteProxy = undefined;`
+If you are not using a proxy, just do `config.remoteProxy = undefined;`
