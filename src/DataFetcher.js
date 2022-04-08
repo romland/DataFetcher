@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path  from "path";
 import axios from 'axios';
 import UserAgent from 'user-agents';
 
@@ -59,19 +60,28 @@ export default class DataFetcher
 			},
 
 			/**
-			 * This will consume a bit more memory as all responses are cached
-			 * to be passed to this function when the run is finished or aborted.
+			 * If enabled: a new file will be created together with your seed-data
+			 * and the new data that was fetched. 
 			 * 
 			 * It is handy for the case where you want to immediately create a 
-			 * new CSV file including the fetched data.
+			 * new file based on seedfile, including the fetched data. If you choose
+			 * to not use this functionality, you can just parse the output fil yourself.
 			 * 
-			 * Old responses from a possible previous run are also included in the 
-			 * array passed to postRunRefine().
+			 * If you are enabling this, though:
+			 * 
+			 * Your postRunRefineRecord() method is the one that will return any
+			 * new data that should be appended to the original data.
+			 * 
+			 * Enabling this will consume a bit more memory as all responses are
+			 * cached to be passed to this function when a run is finished or aborted.
+			 * 
+			 * Old responses from a possible previous run will also be passed
+			 * to postRunRefineRecord().
 			 */
 			postRunRefineEnabled : false,
-			postRunRefine : (responses, seedDataColumnNames) => {
+			postRunRefineRecord : (response) => {
 				// Does nothing by default.
-				// Note that it is also DISABLED by default (set postRunRefinementEnabled to true).
+				// Note that it is also DISABLED by default (set postRunRefineEnabled to true).
 			},
 		};
 	}
@@ -252,7 +262,7 @@ export default class DataFetcher
 			}
 
 			if(this.config.postRunRefineEnabled === true) {
-				this.config.postRunRefine(this.cachedResponses, this.cachedSeedDataColumnNames);
+				this.postRefineCSV(this.cachedResponses, this.cachedSeedDataColumnNames);
 			}
 		};
 
@@ -445,5 +455,83 @@ export default class DataFetcher
 		}
 	
 		return ret;
+	}
+
+	/**
+	 * This does the opposite of getSeedDataCSV().
+	 */
+	postRefineCSV(responses, columnNames)
+	{
+		const tmpfn = path.basename(this.config.seedFilename);
+		const refinedFilename = this.config.seedFilename.replace(tmpfn, "refined_" + tmpfn);
+
+		// The refined file is always machine generated so should contain 
+		// no additional data. It's safe to delete.
+		if(fs.existsSync(refinedFilename)) {
+			fs.unlinkSync(refinedFilename);
+			console.debug(`Deleted ${refinedFilename}`);
+		}
+	
+		if(this.config.randomizeSeedOrder) {
+			// Undo randomized order.
+			responses.sort((a, b) => {
+				return a._seedrow.id - b._seedrow.id;
+			});
+		}
+	
+		let csvLine;
+		let originalOrder;
+	
+		// Re-assemble the seed CSV file with fetched data appended to each record.
+		for(let i = 0; i < responses.length; i++) {
+			/*
+			 * We expect this call to return an object like this:
+			 * 	{
+			 * 		additionalFieldName1 : additionalFieldValue1,
+			 * 		additionalFieldName2 : additionalFieldValue2
+			 * 	}
+			 */
+			let newData = this.config.postRunRefineRecord(responses[i]);
+
+			if(i === 0) {
+				// First row means we should write the fieldnames
+				let cols = columnNames
+					+ this.config.seedDataFormat.separator
+					+ Object.keys(newData).join(this.config.seedDataFormat.separator);
+
+				cols += this.config.seedDataFormat.lineTerminator;
+			
+				// Write the column names to file (always first line in a CSV file).
+				fs.appendFileSync(refinedFilename, cols);
+
+				originalOrder = Object.keys(newData);
+			} else {
+				// Verify that the order of the keys is the same as first row.
+				let currentKeys = Object.keys(newData);
+				if(currentKeys.length !== originalOrder.length) {
+					throw "Post-refine function returned an object with a different number of keys than the first row.";
+				}
+
+				for(let i = 0; i < currentKeys.length; i++) {
+					if(currentKeys[i] !== originalOrder[i]) {
+						throw "Post-refine function returned an object with a different order of keys than the first row.";
+					}
+				}
+			}
+			
+			// Start the row with the original CSV data.
+			csvLine = responses[i]._seedrow.org;
+			
+			// Append the new data
+			csvLine += this.config.seedDataFormat.separator
+				+ Object.values(newData).join(this.config.seedDataFormat.separator);
+
+			// Terminate line
+			csvLine += this.config.seedDataFormat.lineTerminator;
+
+			fs.appendFileSync(refinedFilename, csvLine);
+		}
+	
+		console.log("Created", refinedFilename);
 	}
 }
