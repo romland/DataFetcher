@@ -55,8 +55,18 @@ config.getBodyToPassToRemoteServer = (seedRow) => {
  * If necessary, describe how to determine whether we need to back off from the 
  * remote service for N minutes.
  */
-config.queryRateLimit = (response, seedRow) => {
-	return response["error"] === "Slow down."
+config.queryBackOff = (response, seedRow, fetchesSinceLastBackOff) => {
+	// Back off every N remote fetches.
+	if(fetchesSinceLastBackOff >= 2) {
+		return true;
+	}
+
+	// Back off if we get an 'error' key in the response from the server.
+	if(response["error"] === "Slow down.") {
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -68,10 +78,11 @@ config.queryRateLimit = (response, seedRow) => {
  */
 config.postRunRefineEnabled = true;
 config.postRunRefineRecord = (response) => {
+	// console.debug("Response to refine", response);
 	return {
-		"seedindex" : response._seedrow.id,							// Index of record in the seed file
-		"fetching" : "" + response._fetchEnabled,					// Are we fetching data from remote service or dry-run?
-		"origin" : response._fetchEnabled ? response.origin : "n/a"	// This comes from the default remote service (httpbin.org)
+		"seedindex" : response._seedrow.id,			// Index of record in the seed file
+		"fetching" : response._fetchEnabled,		// Are we fetching data from remote service or dry-run (dry-run defines _fetchEnabled in response)?
+		"origin" : response.origin || "n/a"			// This comes from the default remote service (httpbin.org)
 	};
 };
 
@@ -79,6 +90,7 @@ if(DRY_RUN) {
 	config.runType = "DRY";
 	config.seedFilename = './examples/data/test.csv';
 	config.remoteServiceUrl = 'https://httpbin.org/post';
+	// You WILL want to change the following to true. A false prevent us from fetching anything online.
 	config.fetchEnabled = false;
 } else {
 	config.runType = "REAL";
@@ -89,6 +101,19 @@ if(DRY_RUN) {
 
 // Separate cache from test runs and live runs (in case we need to restart and test midway)
 config.responseCacheFilename = './examples/data/output/' + config.runType + '-responsecache.json';
+
+/**
+ * Whether we should discard the response we got when we decided to back off.
+ * 
+ * The method config.queryRateLimit() is where you make the rules for this.
+ *
+ * Setting below to true is handy if you do not know how many records you can fetch, and
+ * the response is telling you that you are now temporarily blocked.
+ * 
+ * Setting below to false is handy if you only want to get, say 20 records, then back
+ * off for a while.
+ */
+config.discardBackOffResponse = false;
 
 /**
  * We want to use a proxy server. This is passed as-is to Axios.

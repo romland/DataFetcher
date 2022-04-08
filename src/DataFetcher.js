@@ -24,6 +24,7 @@ export default class DataFetcher
 			maxFailCount : 25,								// How many consecutive fetch-failures before we abort whole run.
 			sleepIntervalsAfterFail : 3,					// How many intervals to sleep after a fetch-failure (set to 0 for none).
 			responseCacheFilename : "default-responsecache.json",	// The file to write the fetched data to (for recovery).
+			discardBackOffResponse : true,				// Whether to discard the response that makes us back off.
 
 			seedDataFormat : {
 				format : "CSV",								// What format is the seed data in?
@@ -49,7 +50,7 @@ export default class DataFetcher
 				return new URLSearchParams(seedRow);
 			},
 
-			queryRateLimit : (response, seedRow) => {
+			queryBackOff : (response, seedRow) => {
 				// Default: no rate limiting.
 				return false;
 			},
@@ -107,8 +108,9 @@ export default class DataFetcher
 		const mandatoryFields = [ 
 			'taskInterval', 'taskBackOffMinutes', 'randomizeSeedOrder', 'randomizeUserAgent', 'runType', 'seedFilename', 
 			'responseCacheFilename', 'remoteServiceUrl', 'fetchEnabled', 'relevantSeedDataColumns', "seedDataFormat",
+			'discardBackOffResponse',
 			// Methods
-			'getBodyToPassToRemoteServer', 'queryRateLimit', 'mutateImportedSeedRow', "postRunRefineRecord"
+			'getBodyToPassToRemoteServer', 'queryBackOff', 'mutateImportedSeedRow', "postRunRefineRecord"
 		];
 	
 		for(let i = 0; i < mandatoryFields.length; i++) {
@@ -142,6 +144,7 @@ export default class DataFetcher
 		let taskRunning = false;
 		let response, nowStr;
 		let currentFailCount = 0, currentRecordFailCount = 0;
+		let fetchesSinceLastBackOff = 0;
 
 		let currentLine = 0;			// Start line
 		let endLine = seedData.length;	// Change to just do a test of a smaller number of lines. TODO: Make this configurable.
@@ -200,6 +203,7 @@ export default class DataFetcher
 				response = await this.fetchRemoteRecord(seedData[currentLine]);
 				currentFailCount = 0;
 				currentRecordFailCount = 0;
+				fetchesSinceLastBackOff++;
 			} catch(ex) {
 				// Some error while fetching.
 				console.log(ex, ex.message);
@@ -228,16 +232,18 @@ export default class DataFetcher
 				Continue();
 				return;
 			}
-	
-			// Check for rate-limiting (we will discard this response).
-			if(this.config.queryRateLimit(response, seedData[currentLine])) {
-				console.warn(nowStr, "Rate limited. Backing off for ", this.config.taskBackOffMinutes, "minutes");
-	
+
+			// Check for rate-limiting (we discard this response, depending on configuration).
+			let limitRate = this.config.queryBackOff(response, seedData[currentLine], fetchesSinceLastBackOff);
+
+			if(limitRate && this.config.discardBackOffResponse === true) {
+				console.warn(nowStr, "Rate limited. Discarding response and backing off for", this.config.taskBackOffMinutes, "minutes");
+				fetchesSinceLastBackOff = 0;
 				sleepUntil = Date.now() + (this.config.taskBackOffMinutes * 60 * 1000);
 				taskRunning = false;
 				return;
 			}
-	
+
 			// Add the seed data to persisted record for easier refinement.
 			response._seedrow = seedData[currentLine];
 
@@ -253,8 +259,15 @@ export default class DataFetcher
 				this.cachedResponses.push(response);
 			}
 
-			// Don't add any extra sleep before running next task. Standard interval is the decider.
-			sleepUntil = Date.now();
+			if(limitRate && !this.config.discardBackOffResponse) {
+				console.warn(nowStr, "Rate limited. Backing off for", this.config.taskBackOffMinutes, "minutes");
+				fetchesSinceLastBackOff = 0;
+				sleepUntil = Date.now() + (this.config.taskBackOffMinutes * 60 * 1000);
+			} else {
+				// Don't add any extra sleep before running next task. Standard interval is the decider.
+				sleepUntil = Date.now();
+			}
+
 			currentLine++;
 			taskRunning = false;
 		};
