@@ -41,7 +41,7 @@ df.run();
 ## Current limitations
 The limitations are there only because I have not needed anything else. 
 
-- Very naive CSV handling (no support for quotes nor escaped delimeters)
+- Very naive CSV handling (no support for quotes nor escaped delimiters)
 - Only support seed files in CSV
 - Can only create CSV files
 - Can only send the following request type(s):
