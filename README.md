@@ -54,5 +54,9 @@ It should be easy to add broader support.
 If you are not using a proxy, just do `config.remoteProxy = undefined;`
 
 
+## Code
+Tabs are awesome. Four-space tabs doubly so.
+
+
 ## License
 MIT.
