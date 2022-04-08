@@ -462,8 +462,9 @@ export default class DataFetcher
 	 */
 	postRefineCSV(responses, columnNames)
 	{
-		const tmpfn = path.basename(this.config.seedFilename);
-		const refinedFilename = this.config.seedFilename.replace(tmpfn, "refined_" + tmpfn);
+		// const tmpfn = path.basename(this.config.seedFilename);
+		// const refinedFilename = this.config.seedFilename.replace(tmpfn, "refined_" + tmpfn);
+		const refinedFilename = this.config.seedFilename + ".refined.csv";
 
 		// The refined file is always machine generated so should contain 
 		// no additional data. It's safe to delete.
