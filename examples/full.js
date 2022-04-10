@@ -106,7 +106,7 @@ config.responseCacheFilename = './examples/data/output/' + config.runType + '-re
  * 
  * Whether we should discard the response we got when we decided to back off.
  * 
- * The method config.queryRateLimit() is where you make the rules for this.
+ * The method config.queryBackOff() is where you make the rules for this.
  *
  * Setting below to true is handy if you do not know how many records you can fetch, but
  * a response is telling you that you are now temporarily blocked. You do not want that
@@ -121,8 +121,10 @@ config.responseCacheFilename = './examples/data/output/' + config.runType + '-re
 config.discardBackOffResponse = false;
 
 /**
- * We want to use a proxy server. This is passed as-is to Axios.
+ * We (would) want to use a proxy server, but it would need to be configured with
+ * working credentials. This is passed as-is to Axios.
  */
+/*
  config.remoteProxy = {
 	host: 'proxy.scrapingbee.com',
 	port: 8886,
@@ -131,7 +133,7 @@ config.discardBackOffResponse = false;
 		password: 'render_js=false&forward_headers_pure=true'
 	}
 };
-
+*/
 
 console.log("Config:", config);
 const df = new DataFetcher(config);
